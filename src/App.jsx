@@ -316,7 +316,10 @@ export default function App() {
         {activeTab === "settings" && <SettingsView setModal={setModal} />}
       </main>
 
-      <nav className="absolute bottom-8 left-6 right-6 z-50">
+      <nav
+        className="absolute left-6 right-6 z-50"
+        style={{ bottom: "calc(2rem + env(safe-area-inset-bottom))" }}
+      >
         <div className="glass-card bg-[#0a0a12]/90 p-2 w-full select-none">
           <div className="relative flex w-full h-12 items-center justify-between">
             <NavButton
