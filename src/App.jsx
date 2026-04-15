@@ -1279,15 +1279,15 @@ function HomeView({ activeDate }) {
             {weightData.length > 1 ? (
               <svg
                 viewBox="0 0 100 100"
+                /* FIX: Removing preserveAspectRatio="none" stops the circles from stretching into ovals */
                 className="w-full h-full overflow-visible"
-                preserveAspectRatio="none"
               >
                 {/* Visual Guide Lines */}
                 <line
                   x1="0"
-                  y1="0"
+                  y1="15"
                   x2="100"
-                  y2="0"
+                  y2="15"
                   stroke="white"
                   strokeWidth="0.5"
                   strokeDasharray="2,4"
@@ -1305,9 +1305,9 @@ function HomeView({ activeDate }) {
                 />
                 <line
                   x1="0"
-                  y1="100"
+                  y1="85"
                   x2="100"
-                  y2="100"
+                  y2="85"
                   stroke="white"
                   strokeWidth="0.5"
                   strokeDasharray="2,4"
@@ -1319,20 +1319,19 @@ function HomeView({ activeDate }) {
                   points={weightData
                     .map((d, i) => {
                       const x = (i / (weightData.length - 1)) * 100;
-                      // Normalized Y with 15% padding so points don't clip
                       const y = 85 - ((d.weight - minW) / wRange) * 70;
                       return `${x},${y}`;
                     })
                     .join(" ")}
                   fill="none"
                   stroke="#818cf8"
-                  strokeWidth="3"
+                  strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="drop-shadow-[0_0_8px_rgba(129,140,248,0.6)]"
+                  className="drop-shadow-[0_0_8px_rgba(129,140,248,0.4)]"
                 />
 
-                {/* Individual Data Points */}
+                {/* Individual Data Points - Shrunk and protected from stretching */}
                 {weightData.map((d, i) => {
                   const x = (i / (weightData.length - 1)) * 100;
                   const y = 85 - ((d.weight - minW) / wRange) * 70;
@@ -1341,9 +1340,10 @@ function HomeView({ activeDate }) {
                       key={i}
                       cx={x}
                       cy={y}
-                      r="2.5"
+                      /* Reduced radius from 2.5 to 1.5 for a cleaner, pro look */
+                      r="1.5"
                       fill="#fff"
-                      className="drop-shadow-[0_0_4px_rgba(255,255,255,0.8)]"
+                      className="drop-shadow-[0_0_3px_rgba(255,255,255,0.8)]"
                     />
                   );
                 })}
