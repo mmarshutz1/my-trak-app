@@ -1773,7 +1773,7 @@ function MacrosView({ setModal, activeDate }) {
                   onChange={(e) =>
                     setNewFood({ ...newFood, name: e.target.value })
                   }
-                  className="flex-1 bg-white/5 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="flex-1 min-w-0 bg-white/5 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                 />
                 <input
                   type="text"
@@ -1782,19 +1782,21 @@ function MacrosView({ setModal, activeDate }) {
                   onChange={(e) =>
                     setNewFood({ ...newFood, icon: e.target.value })
                   }
-                  className="w-16 bg-white/5 rounded-lg p-2 text-sm text-center text-white focus:outline-none"
+                  className="w-16 shrink-0 bg-white/5 rounded-lg p-2 text-sm text-center text-white focus:outline-none"
                 />
               </div>
-              <div className="flex gap-2">
+
+              {/* FIX: Changed to a strict 3-column Grid and added min-w-0 to inputs */}
+              <div className="grid grid-cols-3 gap-2">
                 <input
                   type="number"
                   inputMode="decimal"
-                  placeholder="Protein (g)"
+                  placeholder="Prot (g)"
                   value={newFood.p}
                   onChange={(e) =>
                     setNewFood({ ...newFood, p: e.target.value })
                   }
-                  className="flex-1 bg-white/5 rounded-lg p-2 text-sm text-center text-blue-300 focus:outline-none"
+                  className="w-full min-w-0 bg-white/5 rounded-lg p-2 text-sm text-center text-blue-300 focus:outline-none"
                 />
                 <input
                   type="number"
@@ -1804,19 +1806,20 @@ function MacrosView({ setModal, activeDate }) {
                   onChange={(e) =>
                     setNewFood({ ...newFood, f: e.target.value })
                   }
-                  className="flex-1 bg-white/5 rounded-lg p-2 text-sm text-center text-yellow-300 focus:outline-none"
+                  className="w-full min-w-0 bg-white/5 rounded-lg p-2 text-sm text-center text-yellow-300 focus:outline-none"
                 />
                 <input
                   type="number"
                   inputMode="decimal"
-                  placeholder="Carbs (g)"
+                  placeholder="Carb (g)"
                   value={newFood.c}
                   onChange={(e) =>
                     setNewFood({ ...newFood, c: e.target.value })
                   }
-                  className="flex-1 bg-white/5 rounded-lg p-2 text-sm text-center text-green-300 focus:outline-none"
+                  className="w-full min-w-0 bg-white/5 rounded-lg p-2 text-sm text-center text-green-300 focus:outline-none"
                 />
               </div>
+
               <button
                 type="submit"
                 className="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg text-sm active:scale-95 transition-all"
