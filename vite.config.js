@@ -5,42 +5,27 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
-    react(),
     tailwindcss(),
+    react(),
     VitePWA({
+      // 1. Tells the app to check for updates automatically
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "masked-icon.svg"],
-      manifest: {
-        name: "Liquid Macros",
-        short_name: "Macros",
-        description: "Track your daily fuel with zero friction.",
-        theme_color: "#1a1a2e",
-        background_color: "#000000",
-        display: "standalone", // Hides the browser UI for that native app feel
-        orientation: "portrait",
-        icons: [
-          {
-            src: "pwa-192x192.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
-          {
-            src: "pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any maskable",
-          },
-        ],
+
+      // 2. Injects the service worker registration code for you
+      injectRegister: "auto",
+
+      // 3. Forces the new update to instantly take over the old one
+      workbox: {
+        clientsClaim: true,
+        skipWaiting: true,
+        // Caches your local assets for instant offline loading
+        globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
       },
+
+      // 4. Tells Vite to use the physical manifest.json we created in the public folder
+      manifest: false,
     }),
   ],
-  // This helps Vite 8 handle the commonJS/ESM mix in Recharts
-  optimizeDeps: {
-    include: ["recharts", "react-is"],
-  },
+  // Note: We removed the optimizeDeps for "recharts" since we
+  // built our own custom hardware-accelerated SVG charts!
 });
