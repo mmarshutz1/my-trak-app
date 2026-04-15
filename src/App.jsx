@@ -1085,15 +1085,7 @@ function HomeView({ activeDate }) {
     weightData.length > 0 ? weightData[weightData.length - 1].weight : "--";
   const minW = Math.min(...weightData.map((d) => d.weight));
   const maxW = Math.max(...weightData.map((d) => d.weight));
-  const wRange = maxW - minW || 1;
-
-  const weightPoints = weightData
-    .map((d, i) => {
-      const x = (i / (weightData.length - 1 || 1)) * 100;
-      const y = 100 - ((d.weight - minW) / wRange) * 100;
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const wRange = maxW - minW;
 
   return (
     <div className="flex flex-col space-y-6 pb-10">
@@ -1276,10 +1268,9 @@ function HomeView({ activeDate }) {
           </div>
 
           <div className="h-32 w-full relative px-2">
-            {weightData.length > 1 ? (
+            {weightData.length > 0 ? (
               <svg
                 viewBox="0 0 100 100"
-                /* FIX: Removing preserveAspectRatio="none" stops the circles from stretching into ovals */
                 className="w-full h-full overflow-visible"
               >
                 {/* Visual Guide Lines */}
@@ -1318,8 +1309,13 @@ function HomeView({ activeDate }) {
                 <polyline
                   points={weightData
                     .map((d, i) => {
-                      const x = (i / (weightData.length - 1)) * 100;
-                      const y = 85 - ((d.weight - minW) / wRange) * 70;
+                      // FIX: Anchor to the right, push left by fixed intervals (100 / 11 segments = 9.09)
+                      const reverseIdx = weightData.length - 1 - i;
+                      const x = 100 - reverseIdx * (100 / 11);
+                      const y =
+                        wRange === 0
+                          ? 50
+                          : 85 - ((d.weight - minW) / wRange) * 70;
                       return `${x},${y}`;
                     })
                     .join(" ")}
@@ -1331,16 +1327,17 @@ function HomeView({ activeDate }) {
                   className="drop-shadow-[0_0_8px_rgba(129,140,248,0.4)]"
                 />
 
-                {/* Individual Data Points - Shrunk and protected from stretching */}
+                {/* Individual Data Points */}
                 {weightData.map((d, i) => {
-                  const x = (i / (weightData.length - 1)) * 100;
-                  const y = 85 - ((d.weight - minW) / wRange) * 70;
+                  const reverseIdx = weightData.length - 1 - i;
+                  const x = 100 - reverseIdx * (100 / 11);
+                  const y =
+                    wRange === 0 ? 50 : 85 - ((d.weight - minW) / wRange) * 70;
                   return (
                     <circle
                       key={i}
                       cx={x}
                       cy={y}
-                      /* Reduced radius from 2.5 to 1.5 for a cleaner, pro look */
                       r="1.5"
                       fill="#fff"
                       className="drop-shadow-[0_0_3px_rgba(255,255,255,0.8)]"
