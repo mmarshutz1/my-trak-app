@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  /* High-contrast brand colors for your minimalist aesthetic */
+  --color-bg-dark: #0a0a12;
+}
+
+@layer base {
+  /* Force the entire DOM tree to fill the dynamic screen exactly */
+  html,
+  body,
+  #root {
+    @apply bg-black text-zinc-100 font-sans antialiased overscroll-none overflow-hidden;
+    height: 100dvh;
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+
+    /* Hardware safe areas for iPhone notches and Android system bars */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+@layer components {
+  /* Your preferred minimalist, high-contrast glass style */
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl;
+  }
+
+  /* Hide scrollbars but keep functionality */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Force the GPU to handle complex animations for 120Hz smoothness */
+  .gpu-accelerate {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+  }
+}
