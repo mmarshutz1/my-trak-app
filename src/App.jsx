@@ -992,16 +992,28 @@ function HomeView({ activeDate }) {
   });
 
   const chartData = daysArray.map((date) => {
-    const log = logs[date] || { protein: 0, fats: 0, carbs: 0 };
+    const log = logs[date] || {};
+
+    // 1. Get actual consumed values, strictly cast as Numbers
+    const actualP = Number(log.protein) || 0;
+    const actualF = Number(log.fats) || 0;
+    const actualC = Number(log.carbs) || 0;
+
+    // 2. Cap the chart visuals at the goal (No Overflow)
+    const p = Math.min(actualP, config.goals.protein);
+    const f = Math.min(actualF, config.goals.fats);
+    const c = Math.min(actualC, config.goals.carbs);
+
     return {
       date,
       label: new Date(date + "T12:00:00").toLocaleDateString("en-US", {
         weekday: "narrow",
       }),
-      p: log.protein || 0,
-      f: log.fats || 0,
-      c: log.carbs || 0,
-      cals: Math.round(log.protein * 4 + log.carbs * 4 + log.fats * 9),
+      p,
+      f,
+      c,
+      // 3. Keep the true uncapped total for your Calorie Average stat
+      cals: Math.round(actualP * 4 + actualC * 4 + actualF * 9),
     };
   });
 
@@ -1054,8 +1066,9 @@ function HomeView({ activeDate }) {
   const pArea = getAreaPoints("protein");
 
   // -----------------------------------------------------
-  // Weight Math for the Line Graph (12-Week Trend)
+  // UPGRADED: 12-Week Weight Trend (Fixed Temporal Grid)
   // -----------------------------------------------------
+  // 1. Group all historical weights into their respective Sundays
   const weeklyWeightsMap = {};
   Object.entries(logs).forEach(([date, data]) => {
     if (data.weight) {
@@ -1068,24 +1081,38 @@ function HomeView({ activeDate }) {
         (!weeklyWeightsMap[sunDate] ||
           date >= weeklyWeightsMap[sunDate].actualDate)
       ) {
-        weeklyWeightsMap[sunDate] = {
-          date: sunDate,
-          actualDate: date,
-          weight: parseFloat(data.weight),
-        };
+        weeklyWeightsMap[sunDate] = parseFloat(data.weight);
       }
     }
   });
 
-  const weightData = Object.values(weeklyWeightsMap)
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .slice(-12);
+  // 2. Generate exactly 12 weekly slots ending on the currently active week
+  const activeDateObj = new Date(activeDate + "T12:00:00");
+  activeDateObj.setDate(activeDateObj.getDate() - activeDateObj.getDay());
 
+  const gridData = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(activeDateObj);
+    d.setDate(d.getDate() - i * 7);
+    const sunDate = d.toISOString().split("T")[0];
+    gridData.push({
+      date: sunDate,
+      weight: weeklyWeightsMap[sunDate] || null,
+    });
+  }
+
+  const validWeights = gridData
+    .filter((d) => d.weight !== null)
+    .map((d) => d.weight);
   const latestWeight =
-    weightData.length > 0 ? weightData[weightData.length - 1].weight : "--";
-  const minW = Math.min(...weightData.map((d) => d.weight));
-  const maxW = Math.max(...weightData.map((d) => d.weight));
+    validWeights.length > 0 ? validWeights[validWeights.length - 1] : "--";
+
+  // 3. Add 20% visual padding so the graph doesn't hit the ceiling/floor
+  const minW = validWeights.length > 0 ? Math.min(...validWeights) : 0;
+  const maxW = validWeights.length > 0 ? Math.max(...validWeights) : 0;
   const wRange = maxW - minW;
+  const pad = wRange === 0 ? 5 : wRange * 0.2;
+  const paddedRange = wRange + pad * 2;
 
   return (
     <div className="flex flex-col space-y-6 pb-10">
@@ -1268,16 +1295,16 @@ function HomeView({ activeDate }) {
           </div>
 
           <div className="h-32 w-full relative px-2">
-            {weightData.length > 0 ? (
+            {validWeights.length > 0 ? (
               <svg
-                viewBox="0 0 100 100"
+                viewBox="0 0 300 100"
                 className="w-full h-full overflow-visible"
               >
-                {/* Visual Guide Lines */}
+                {/* Visual Guide Lines stretched across the new 300 width */}
                 <line
                   x1="0"
                   y1="15"
-                  x2="100"
+                  x2="300"
                   y2="15"
                   stroke="white"
                   strokeWidth="0.5"
@@ -1287,7 +1314,7 @@ function HomeView({ activeDate }) {
                 <line
                   x1="0"
                   y1="50"
-                  x2="100"
+                  x2="300"
                   y2="50"
                   stroke="white"
                   strokeWidth="0.5"
@@ -1297,7 +1324,7 @@ function HomeView({ activeDate }) {
                 <line
                   x1="0"
                   y1="85"
-                  x2="100"
+                  x2="300"
                   y2="85"
                   stroke="white"
                   strokeWidth="0.5"
@@ -1307,17 +1334,16 @@ function HomeView({ activeDate }) {
 
                 {/* The Trend Line */}
                 <polyline
-                  points={weightData
+                  points={gridData
                     .map((d, i) => {
-                      // FIX: Anchor to the right, push left by fixed intervals (100 / 11 segments = 9.09)
-                      const reverseIdx = weightData.length - 1 - i;
-                      const x = 100 - reverseIdx * (100 / 11);
+                      if (d.weight === null) return null;
+                      // Update the X math to map across 300 instead of 100
+                      const x = (i / 11) * 300;
                       const y =
-                        wRange === 0
-                          ? 50
-                          : 85 - ((d.weight - minW) / wRange) * 70;
+                        85 - ((d.weight - (minW - pad)) / paddedRange) * 70;
                       return `${x},${y}`;
                     })
+                    .filter(Boolean)
                     .join(" ")}
                   fill="none"
                   stroke="#818cf8"
@@ -1328,17 +1354,17 @@ function HomeView({ activeDate }) {
                 />
 
                 {/* Individual Data Points */}
-                {weightData.map((d, i) => {
-                  const reverseIdx = weightData.length - 1 - i;
-                  const x = 100 - reverseIdx * (100 / 11);
-                  const y =
-                    wRange === 0 ? 50 : 85 - ((d.weight - minW) / wRange) * 70;
+                {gridData.map((d, i) => {
+                  if (d.weight === null) return null;
+                  // Update the X math to map across 300 instead of 100
+                  const x = (i / 11) * 300;
+                  const y = 85 - ((d.weight - (minW - pad)) / paddedRange) * 70;
                   return (
                     <circle
                       key={i}
                       cx={x}
                       cy={y}
-                      r="1.5"
+                      r="2"
                       fill="#fff"
                       className="drop-shadow-[0_0_3px_rgba(255,255,255,0.8)]"
                     />
