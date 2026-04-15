@@ -13,8 +13,11 @@ import {
   AlertTriangle,
   Trash2,
   Calendar,
-  ChevronLeft, // <-- Add this
+  ChevronLeft,
   ChevronRight,
+  CheckSquare,
+  Pill,
+  Pencil,
 } from "lucide-react";
 
 // --- Local Storage Database Engine ---
@@ -22,6 +25,7 @@ const DB = {
   KEY_LOGS: "liquid_macros_logs_v2",
   KEY_CONFIG: "liquid_macros_config_v2",
   KEY_FOODS: "liquid_macros_foods_v1",
+  KEY_SUPPS: "liquid_macros_supps_v1", // <-- NEW KEY
 
   getLogs: () => JSON.parse(localStorage.getItem(DB.KEY_LOGS)) || {},
   getConfig: () =>
@@ -29,12 +33,10 @@ const DB = {
       name: "User",
       goals: { protein: 260, fats: 135, carbs: 303 },
     },
-  // UPGRADED: Default Library injected if no data exists
+
   getFoods: () => {
     const stored = localStorage.getItem(DB.KEY_FOODS);
     if (stored) return JSON.parse(stored);
-
-    // The Starter Pack
     return [
       {
         id: 1,
@@ -93,31 +95,50 @@ const DB = {
     ];
   },
 
+  // <-- NEW: Supplement Defaults
+  getSupps: () => {
+    const stored = localStorage.getItem(DB.KEY_SUPPS);
+    if (stored) return JSON.parse(stored);
+    return [
+      { id: 1, name: "Creatine", dose: "5g", icon: "pill" },
+      { id: 2, name: "Vitamin D", dose: "5000 IU", icon: "pill" },
+      { id: 3, name: "Magnesium", dose: "400mg", icon: "pill" },
+      { id: 4, name: "Fish Oil", dose: "2000mg", icon: "pill" },
+    ];
+  },
+
   saveConfig: (newConfig) => {
     const cfg = { ...DB.getConfig(), ...newConfig };
     localStorage.setItem(DB.KEY_CONFIG, JSON.stringify(cfg));
     return cfg;
   },
 
-  // Danger Zone
+  saveSupps: (newSupps) => {
+    localStorage.setItem(DB.KEY_SUPPS, JSON.stringify(newSupps));
+  },
+
   factoryReset: () => {
     localStorage.removeItem(DB.KEY_LOGS);
     localStorage.removeItem(DB.KEY_CONFIG);
     localStorage.removeItem(DB.KEY_FOODS);
+    localStorage.removeItem(DB.KEY_SUPPS); // <-- Added
   },
 
-  // Backup & Restore
   exportData: () => ({
     logs: DB.getLogs(),
     config: DB.getConfig(),
     foods: DB.getFoods(),
+    supps: DB.getSupps(), // <-- Added
   }),
+
   importData: (data) => {
     if (data.logs) localStorage.setItem(DB.KEY_LOGS, JSON.stringify(data.logs));
     if (data.config)
       localStorage.setItem(DB.KEY_CONFIG, JSON.stringify(data.config));
     if (data.foods)
       localStorage.setItem(DB.KEY_FOODS, JSON.stringify(data.foods));
+    if (data.supps)
+      localStorage.setItem(DB.KEY_SUPPS, JSON.stringify(data.supps)); // <-- Added
   },
 };
 
@@ -196,6 +217,8 @@ export default function App() {
     switch (activeTab) {
       case "home":
         return { sub: "Dashboard", main: "My Trak" };
+      case "checklist":
+        return { sub: "Daily Habits", main: "Supplements" }; // <-- NEW ROUTE
       case "weight":
         return { sub: "Metrics", main: "Body Weight" };
       case "macros":
@@ -307,6 +330,10 @@ export default function App() {
       {/* Passed activeDate down to all dynamic views */}
       <main className="flex-1 overflow-y-auto px-6 pb-40 no-scrollbar">
         {activeTab === "home" && <HomeView activeDate={activeDate} />}
+        {activeTab === "checklist" && (
+          <ChecklistView setModal={setModal} activeDate={activeDate} />
+        )}{" "}
+        {/* <-- ADD THIS LINE */}
         {activeTab === "weight" && (
           <WeightView setModal={setModal} activeDate={activeDate} />
         )}
@@ -328,6 +355,13 @@ export default function App() {
               activeTab={activeTab}
               onClick={handleTabClick}
             />
+            <NavButton
+              id="checklist"
+              icon={<CheckSquare size={24} />}
+              activeTab={activeTab}
+              onClick={handleTabClick}
+            />{" "}
+            {/* <-- ADD THIS LINE */}
             <NavButton
               id="weight"
               icon={<Scale size={24} />}
@@ -376,6 +410,249 @@ export default function App() {
 // ZONE 7: SUB-COMPONENTS & VIEWS
 // ==========================================
 
+function ChecklistView({ setModal, activeDate }) {
+  const [supps, setSupps] = useState(DB.getSupps());
+  const [todayLog, setTodayLog] = useState(
+    DB.getLogs()[activeDate] || {
+      protein: 0,
+      fats: 0,
+      carbs: 0,
+      entries: [],
+      completedSupps: [],
+    },
+  );
+
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [newSupp, setNewSupp] = useState({ name: "", dose: "" });
+
+  useEffect(() => {
+    setTodayLog(
+      DB.getLogs()[activeDate] || {
+        protein: 0,
+        fats: 0,
+        carbs: 0,
+        entries: [],
+        completedSupps: [],
+      },
+    );
+  }, [activeDate]);
+
+  const hapticTap = () => {
+    if ("vibrate" in navigator) navigator.vibrate(10);
+  };
+  const hapticSuccess = () => {
+    if ("vibrate" in navigator) navigator.vibrate([15, 30]);
+  };
+
+  const handleToggle = (suppId) => {
+    hapticTap();
+    const currentCompleted = todayLog.completedSupps || [];
+    const isCompleted = currentCompleted.includes(suppId);
+    const updatedCompleted = isCompleted
+      ? currentCompleted.filter((id) => id !== suppId)
+      : [...currentCompleted, suppId];
+
+    const updatedLog = { ...todayLog, completedSupps: updatedCompleted };
+    setTodayLog(updatedLog);
+
+    const logs = DB.getLogs();
+    logs[activeDate] = updatedLog;
+    localStorage.setItem(DB.KEY_LOGS, JSON.stringify(logs));
+  };
+
+  const handleSaveSupp = (e) => {
+    e.preventDefault();
+    hapticSuccess();
+    let updatedSupps;
+
+    if (editingId) {
+      updatedSupps = supps.map((s) =>
+        s.id === editingId
+          ? { ...s, name: newSupp.name, dose: newSupp.dose, icon: "pill" }
+          : s,
+      );
+    } else {
+      const newSuppItem = {
+        id: Date.now(),
+        name: newSupp.name,
+        dose: newSupp.dose,
+        icon: "pill", // Always defaults to pill
+      };
+      updatedSupps = [...supps, newSuppItem];
+    }
+
+    setSupps(updatedSupps);
+    DB.saveSupps(updatedSupps);
+    setNewSupp({ name: "", dose: "" });
+    setIsAdding(false);
+    setEditingId(null);
+  };
+
+  const handleEditSupp = (e, supp) => {
+    e.stopPropagation();
+    hapticTap();
+    setEditingId(supp.id);
+    setNewSupp({ name: supp.name, dose: supp.dose });
+    setIsAdding(true);
+  };
+
+  const handleDeleteSupp = (e, suppId) => {
+    e.stopPropagation();
+    if ("vibrate" in navigator) navigator.vibrate([20, 20]);
+    setModal({
+      isOpen: true,
+      title: "Remove Item?",
+      message: "Are you sure you want to delete this from your master list?",
+      onConfirm: () => {
+        const updatedSupps = supps.filter((s) => s.id !== suppId);
+        setSupps(updatedSupps);
+        DB.saveSupps(updatedSupps);
+        if (editingId === suppId) {
+          setIsAdding(false);
+          setEditingId(null);
+        }
+      },
+      showCancel: true,
+    });
+  };
+
+  const completedCount = (todayLog.completedSupps || []).length;
+  const progressPercent =
+    supps.length > 0 ? (completedCount / supps.length) * 100 : 0;
+
+  return (
+    <div className="flex flex-col space-y-8 pb-10">
+      <ScrollReveal>
+        <div className="glass-card p-6 flex flex-col relative overflow-hidden">
+          <div className="flex justify-between items-end mb-4">
+            <div>
+              <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-1">
+                Daily Routine
+              </h3>
+              <p className="text-2xl font-bold text-white">
+                {completedCount} / {supps.length}{" "}
+                <span className="text-sm text-zinc-500 font-medium tracking-normal">
+                  Done
+                </span>
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                hapticTap();
+                setIsAdding(!isAdding);
+                if (isAdding) {
+                  setEditingId(null);
+                  setNewSupp({ name: "", dose: "" });
+                }
+              }}
+              className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-lg uppercase tracking-[0.2em]"
+            >
+              {isAdding ? "Cancel" : "+ Add New"}
+            </button>
+          </div>
+          <div className="w-full bg-black/40 h-2 rounded-full overflow-hidden border border-white/5">
+            <div
+              className="bg-indigo-500 h-full transition-all duration-700 ease-out"
+              style={{ width: `${progressPercent}%` }}
+            ></div>
+          </div>
+        </div>
+      </ScrollReveal>
+
+      {isAdding && (
+        <ScrollReveal>
+          <form onSubmit={handleSaveSupp} className="glass-card p-4 space-y-4">
+            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] border-b border-white/5 pb-2">
+              {editingId ? "Edit Item" : "New Item"}
+            </h3>
+            <div className="flex flex-col gap-3">
+              <input
+                type="text"
+                required
+                placeholder="Name (e.g. Fish Oil)"
+                value={newSupp.name}
+                onChange={(e) =>
+                  setNewSupp({ ...newSupp, name: e.target.value })
+                }
+                className="w-full bg-black/40 border border-white/5 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500"
+              />
+              <input
+                type="text"
+                placeholder="Dosage (e.g. 2000mg)"
+                value={newSupp.dose}
+                onChange={(e) =>
+                  setNewSupp({ ...newSupp, dose: e.target.value })
+                }
+                className="w-full bg-black/40 border border-white/5 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl text-sm active:scale-95 transition-all"
+            >
+              {editingId ? "Save Changes" : "Add to Routine"}
+            </button>
+          </form>
+        </ScrollReveal>
+      )}
+
+      <div className="space-y-3">
+        {supps.map((supp) => {
+          const isCompleted = (todayLog.completedSupps || []).includes(supp.id);
+          return (
+            <ScrollReveal key={supp.id}>
+              <div
+                onClick={() => handleToggle(supp.id)}
+                className={`relative p-5 rounded-2xl border cursor-pointer transition-all duration-300 flex items-center justify-between group overflow-hidden ${isCompleted ? "bg-indigo-600/10 border-indigo-500/30" : "bg-white/5 border-white/10"}`}
+              >
+                <div className="flex items-center gap-4 relative z-10">
+                  <Pill
+                    size={28}
+                    className={
+                      isCompleted ? "text-indigo-400" : "text-zinc-500"
+                    }
+                  />
+                  <div className="flex flex-col">
+                    <span
+                      className={`font-bold ${isCompleted ? "text-white" : "text-zinc-300"}`}
+                    >
+                      {supp.name}
+                    </span>
+                    <span className="text-xs text-zinc-500">{supp.dose}</span>
+                  </div>
+                </div>
+                <div className="flex items-center relative z-10 gap-2">
+                  <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => handleEditSupp(e, supp)}
+                      className="p-2 text-zinc-500 hover:text-indigo-400"
+                    >
+                      <Pencil size={18} />
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteSupp(e, supp.id)}
+                      className="p-2 text-zinc-600 hover:text-red-400"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                  <div
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isCompleted ? "border-indigo-400 bg-indigo-500" : "border-zinc-600"}`}
+                  >
+                    {isCompleted && (
+                      <CheckSquare size={14} className="text-white" />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </ScrollReveal>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 // --- NEW: Custom Glass Calendar Modal ---
 function CustomCalendar({ isOpen, onClose, activeDate, onDateSelect }) {
   if (!isOpen) return null;
@@ -989,7 +1266,7 @@ function HomeView({ activeDate }) {
         </div>
       </ScrollReveal>
 
-      {/* Upgraded Weekly Weight Trend Chart */}
+      {/* UPGRADED: Fixed & Normalized Weekly Weight Trend Chart */}
       <ScrollReveal>
         <div className="glass-card p-6 flex flex-col relative overflow-hidden">
           <div className="flex justify-between items-end mb-6 border-b border-white/5 pb-2 relative z-10">
@@ -998,31 +1275,82 @@ function HomeView({ activeDate }) {
             </h3>
           </div>
 
-          <div className="h-32 w-full relative">
+          <div className="h-32 w-full relative px-2">
             {weightData.length > 1 ? (
               <svg
-                viewBox="0 -10 100 120"
-                className="w-full h-full preserve-3d"
+                viewBox="0 0 100 100"
+                className="w-full h-full overflow-visible"
                 preserveAspectRatio="none"
               >
+                {/* Visual Guide Lines */}
+                <line
+                  x1="0"
+                  y1="0"
+                  x2="100"
+                  y2="0"
+                  stroke="white"
+                  strokeWidth="0.5"
+                  strokeDasharray="2,4"
+                  opacity="0.1"
+                />
+                <line
+                  x1="0"
+                  y1="50"
+                  x2="100"
+                  y2="50"
+                  stroke="white"
+                  strokeWidth="0.5"
+                  strokeDasharray="2,4"
+                  opacity="0.1"
+                />
+                <line
+                  x1="0"
+                  y1="100"
+                  x2="100"
+                  y2="100"
+                  stroke="white"
+                  strokeWidth="0.5"
+                  strokeDasharray="2,4"
+                  opacity="0.1"
+                />
+
+                {/* The Trend Line */}
                 <polyline
-                  points={weightPoints}
+                  points={weightData
+                    .map((d, i) => {
+                      const x = (i / (weightData.length - 1)) * 100;
+                      // Normalized Y with 15% padding so points don't clip
+                      const y = 85 - ((d.weight - minW) / wRange) * 70;
+                      return `${x},${y}`;
+                    })
+                    .join(" ")}
                   fill="none"
                   stroke="#818cf8"
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="drop-shadow-[0_4px_8px_rgba(129,140,248,0.5)]"
+                  className="drop-shadow-[0_0_8px_rgba(129,140,248,0.6)]"
                 />
+
+                {/* Individual Data Points */}
                 {weightData.map((d, i) => {
                   const x = (i / (weightData.length - 1)) * 100;
-                  const y = 100 - ((d.weight - minW) / wRange) * 100;
-                  return <circle key={i} cx={x} cy={y} r="2" fill="#fff" />;
+                  const y = 85 - ((d.weight - minW) / wRange) * 70;
+                  return (
+                    <circle
+                      key={i}
+                      cx={x}
+                      cy={y}
+                      r="2.5"
+                      fill="#fff"
+                      className="drop-shadow-[0_0_4px_rgba(255,255,255,0.8)]"
+                    />
+                  );
                 })}
               </svg>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-zinc-500 text-xs">
-                Not enough weekly data for graph.
+              <div className="w-full h-full flex items-center justify-center text-zinc-600 text-[10px] uppercase tracking-widest font-bold">
+                Awaiting more weekly data...
               </div>
             )}
           </div>
@@ -1030,14 +1358,16 @@ function HomeView({ activeDate }) {
           <div className="flex justify-between items-end mt-4 relative z-10">
             <div>
               <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-1">
-                Current Weekly Weight
+                Current Average
               </h3>
             </div>
             <div className="flex items-baseline gap-1">
               <span className="text-3xl font-bold text-white">
                 {latestWeight}
               </span>
-              <span className="text-sm font-medium text-zinc-500">lbs</span>
+              <span className="text-xs font-bold text-indigo-400 uppercase">
+                lbs
+              </span>
             </div>
           </div>
         </div>
